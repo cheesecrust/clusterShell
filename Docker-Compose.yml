@@ -1,0 +1,46 @@
+version: "3"
+services:
+  main:
+    image: ssh-server:ubuntu-22.04
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: main
+    volumes:
+      - ./source:/source
+      - .:/build
+    environment:
+      - CLSH_HOSTS=node1:node2:node3:node4
+      - CLSH_HOSTFILE=clusterfile
+  node1:
+    image: ssh-server:ubuntu-22.04
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: node1
+    volumes:
+      - .:/build
+  node2:
+    image: ssh-server:ubuntu-22.04
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: node2
+    volumes:
+      - .:/build
+  node3:
+    image: ssh-server:ubuntu-22.04
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: node3
+    volumes:
+      - .:/build
+  node4:
+    image: ssh-server:ubuntu-22.04
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: node4
+    volumes:
+      - .:/build
