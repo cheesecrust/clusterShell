@@ -1,53 +1,9 @@
-#include <errno.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#include "clsh.h"
 
 #define nodeNum 4
 #define MSGSIZE 10000
 
 pid_t pid[nodeNum];
-
-int getNodes(char *nodes, char *nodeList[], char delimiter) {
-    int index = 0;
-    int nodeSize = 0;
-    char tmp[1000];
-
-    for (int i = 0; i < strlen(nodes); ++i) {
-        if (nodes[i] != delimiter) {
-            tmp[index++] = nodes[i];
-        } else {
-            tmp[index] = '\0';  // 현재까지의 문자열 끝에 null 문자 추가
-            nodeList[nodeSize++] = strdup(tmp);
-            // 다음 아이템을 위해 초기화
-            memset(tmp, 0, sizeof(tmp));
-            index = 0;
-        }
-    }
-
-    nodeList[nodeSize++] = strdup(tmp);
-    // 마지막 아이템 처리
-    return nodeSize;
-}
-
-int getRemoteCommand(char *command[], char *remoteCommand, int start, int end) {
-    int commandSize = 0;
-
-    for (int i = start; i < end; i++) {
-        strcat(remoteCommand, command[i]);
-        strcat(remoteCommand, " ");
-        commandSize += strlen(command[i]) + 1;
-    }
-
-    remoteCommand[commandSize - 1] = '\n';
-    return commandSize;
-}
 
 int main(int argc, char *argv[]) {
     char buff[MSGSIZE] = {0};
@@ -56,8 +12,14 @@ int main(int argc, char *argv[]) {
     char *nodeList[MSGSIZE] = {0};
     char remoteCommand[MSGSIZE] = {0};
 
+    char keyboardBuffer[MSGSIZE] = {0};
+
     int nodeSize = 0;
     int remoteCommandSize = 0;
+
+    getOption(argc, argv);
+
+    return 0;
 
     if (strcmp(argv[1], "-h") == 0) {
         nodeSize = getNodes(argv[2], nodeList, ',');
@@ -89,6 +51,21 @@ int main(int argc, char *argv[]) {
         remoteCommandSize = getRemoteCommand(argv, remoteCommand, 1, argc);
     }
 
+    if (remoteCommand[0] == '-' && remoteCommand[1] == 'b') {
+        read(0, keyboardBuffer, MSGSIZE);
+
+        for (int i = 0; i < remoteCommandSize; i++) {
+            remoteCommand[i] = remoteCommand[i + 3];
+        }
+
+        strcat(remoteCommand, "<<< ");
+        strcat(remoteCommand, keyboardBuffer);
+        replaceItem(remoteCommand, '\n', ' ');
+        strcat(remoteCommand, "\n");
+
+        remoteCommandSize = strlen(remoteCommand);
+    }
+
     for (int i = 0; i < nodeSize; i++) {
         // pipe() 함수를 이용하여 파이프를 생성한다.
         if (pipe(input[i]) == -1 || pipe(output[i]) == -1 || pipe(err[i]) == -1) {
@@ -114,8 +91,8 @@ int main(int argc, char *argv[]) {
 
             // buffer setting 개행 문자를 만날때까지 채웁니다.
 
-            // setvbuf(stdin, NULL, _IOLBF, 0);
-            // setvbuf(stdout, NULL, _IOLBF, 0);
+            setvbuf(stdin, NULL, _IOLBF, 0);
+            setvbuf(stdout, NULL, _IOLBF, 0);
 
             // execvp() 함수를 이용하여 파이프를 연결한다.
             char *args[] = {"sshpass", "-p", "ubuntu", "ssh", nodeList[i], "-T", "-o",
@@ -130,8 +107,8 @@ int main(int argc, char *argv[]) {
             close(output[i][1]);
             close(err[i][1]);
 
-            // setvbuf(stdin, NULL, _IOLBF, 0);
-            // setvbuf(stdout, NULL, _IOLBF, 0);
+            setvbuf(stdin, NULL, _IOLBF, 0);
+            setvbuf(stdout, NULL, _IOLBF, 0);
         }
     }
 

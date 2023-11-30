@@ -5,7 +5,7 @@ ARG SSH_USER=${SSH_USER:-ubuntu}
 ARG SSH_PASSWORD=${SSH_PASSWORD:-ubuntu}
 ARG SOURCE=https://github.com/Yelp/dumb-init/releases/download
 ENV TZ=Asia/Seoul;
-ADD $SOURCE/v1.2.5/dumb-init_1.2.5_a64.deb /tmp/
+ADD $SOURCE/v1.2.5/dumb-init_1.2.5_amd64.deb /tmp/
 RUN echo $TZ > /etc/timezone
 RUN sed -i "s#/archive.ubuntu.com/#/mirror.kakao.com/#g" /etc/apt/sources.list
 RUN apt update \
@@ -16,7 +16,7 @@ RUN apt update \
     aptitude sudo vim curl \
     net-tools iputils-ping traceroute netcat \
     telnet dnsutils \
-    && apt install /tmp/dumb-init_1.2.5_a64.deb \
+    && apt install /tmp/dumb-init_1.2.5_amd64.deb \
     && mkdir /var/run/sshd \
     && apt clean \
     && rm -rf /var/lib/apt/lists* /tmp/* /var/tmp*
