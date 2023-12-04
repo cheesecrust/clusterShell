@@ -16,6 +16,14 @@
 #define HOST_OPTION "h"
 #define HOST_FILE_OPTION "hostfile"
 #define REDIRECTION_OPTION "b"
+#define OUTPUT_OPTION "out"
+#define ERROR_OPTION "err"
+
+#define HOST_OPTION_INDEX 0
+#define HOST_FILE_OPTION_INDEX 1
+#define REDIRECTION_OPTION_INDEX 2
+#define OUTPUT_OPTION_INDEX 3
+#define ERROR_OPTION_INDEX 4
 
 void replaceItem(char *item, char newItem, char path);
 
@@ -23,6 +31,7 @@ int getNodes(char *, char **, char);
 
 int getRemoteCommand(char **, char *, int, int);
 
-void getOption(int, char **);
+int **getOption(int, char **, int *);
 
+char *getFilename(char *);
 #endif

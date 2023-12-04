@@ -44,13 +44,18 @@ int getRemoteCommand(char *command[], char *remoteCommand, int start, int end) {
     return commandSize;
 }
 
-void getOption(int argc, char **argv) {
+int **getOption(int argc, char **argv, int *cnt) {
     extern int optind;
 
+    int **option_list = (int **)malloc(sizeof(int *) * 100);
     int c = 0;
     while (1) {
+        int *item = (int *)malloc(sizeof(int) * 2);
+
         static struct option long_options[] = {
-            {HOST_FILE_OPTION, required_argument, 0, 1},
+            {HOST_FILE_OPTION, no_argument, 0, HOST_FILE_OPTION_INDEX},
+            {OUTPUT_OPTION, required_argument, 0, OUTPUT_OPTION_INDEX},
+            {ERROR_OPTION, required_argument, 0, ERROR_OPTION_INDEX},
             {0, 0, 0, 0}};
 
         int option_index = 0;
@@ -62,12 +67,39 @@ void getOption(int argc, char **argv) {
         }
 
         switch (c) {
-            case 1:
-                printf("%d \n", optind);
+            case HOST_FILE_OPTION_INDEX:
+                item[0] = HOST_FILE_OPTION_INDEX;
+                item[1] = optind - 1;
+                break;
+            case 'h':
+                item[0] = HOST_OPTION_INDEX;
+                item[1] = optind - 1;
+                break;
+            case 'b':
+                item[0] = REDIRECTION_OPTION_INDEX;
+                item[1] = optind - 1;
+                break;
+            case OUTPUT_OPTION_INDEX:
+                item[0] = OUTPUT_OPTION_INDEX;
+                item[1] = optind - 1;
+                printf("output option\n");
+                break;
+            case ERROR_OPTION_INDEX:
+                item[0] = ERROR_OPTION_INDEX;
+                item[1] = optind - 1;
+                printf("error option\n");
                 break;
             default:
-                printf("%d \n", optind);
                 break;
         }
+
+        option_list[*cnt] = item;
+        *cnt += 1;
     }
+
+    return option_list;
+}
+
+char *getFilename(char *command) {
+    return command + 6;
 }
