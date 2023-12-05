@@ -40,6 +40,8 @@ int getRemoteCommand(char *command[], char *remoteCommand, int start, int end) {
         commandSize += strlen(command[i]) + 1;
     }
 
+    strcat(remoteCommand, "&& echo  ");
+    commandSize += 12;
     remoteCommand[commandSize - 1] = '\n';
     return commandSize;
 }
@@ -53,14 +55,14 @@ int **getOption(int argc, char **argv, int *cnt) {
         int *item = (int *)malloc(sizeof(int) * 2);
 
         static struct option long_options[] = {
-            {HOST_FILE_OPTION, no_argument, 0, HOST_FILE_OPTION_INDEX},
+            {HOST_FILE_OPTION, required_argument, 0, HOST_FILE_OPTION_INDEX},
             {OUTPUT_OPTION, required_argument, 0, OUTPUT_OPTION_INDEX},
             {ERROR_OPTION, required_argument, 0, ERROR_OPTION_INDEX},
             {0, 0, 0, 0}};
 
         int option_index = 0;
 
-        c = getopt_long(argc, argv, "h:b:", long_options, &option_index);
+        c = getopt_long(argc, argv, "h:b:i", long_options, &option_index);
 
         if (c == -1) {
             break;
@@ -72,22 +74,26 @@ int **getOption(int argc, char **argv, int *cnt) {
                 item[1] = optind - 1;
                 break;
             case 'h':
+                printf("%d\n", optind);
                 item[0] = HOST_OPTION_INDEX;
                 item[1] = optind - 1;
                 break;
             case 'b':
+                printf("%d\n", optind);
                 item[0] = REDIRECTION_OPTION_INDEX;
                 item[1] = optind - 1;
                 break;
             case OUTPUT_OPTION_INDEX:
                 item[0] = OUTPUT_OPTION_INDEX;
                 item[1] = optind - 1;
-                printf("output option\n");
                 break;
             case ERROR_OPTION_INDEX:
                 item[0] = ERROR_OPTION_INDEX;
                 item[1] = optind - 1;
-                printf("error option\n");
+                break;
+            case 'i':
+                item[0] = INTERACTIVE_OPTION_INDEX;
+                item[1] = optind - 1;
                 break;
             default:
                 break;

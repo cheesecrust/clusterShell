@@ -6,12 +6,12 @@
 pid_t pid[nodeNum];
 
 int main(int argc, char *argv[]) {
-    char buff[MSGSIZE] = {0};
     int input[nodeNum][2], output[nodeNum][2], err[nodeNum][2];
 
     char *nodeList[MSGSIZE] = {0};
     char remoteCommand[MSGSIZE] = {0};
     char keyboardBuffer[MSGSIZE] = {0};
+    char buff[MSGSIZE] = {0};
 
     int nodeSize = 0;
     int remoteCommandSize = 0;
@@ -20,6 +20,7 @@ int main(int argc, char *argv[]) {
     char *outFilename;
     char *errFilename;
     int commandStart = 1;
+    int interactive = 0;
 
     for (int i = 0; i < cnt; i++) {
         int command_start = option_list[i][1];
@@ -67,6 +68,11 @@ int main(int argc, char *argv[]) {
             errFilename = getFilename(argv[command_start]);
             commandStart = commandStart + 1;
         }
+
+        if (option_list[i][0] == INTERACTIVE_OPTION_INDEX) {
+            commandStart = commandStart + 1;
+            interactive = 1;
+        }
     }
 
     if (nodeSize == 0) {
@@ -97,6 +103,14 @@ int main(int argc, char *argv[]) {
         }
 
         if (fcntl(output[i][0], F_SETFL, O_NONBLOCK) == -1) {
+            perror("fcntl call");
+        }
+
+        if (fcntl(err[i][0], F_SETFL, O_NONBLOCK) == -1) {
+            perror("fcntl call");
+        }
+
+        if (fcntl(0, F_SETFL, O_NONBLOCK) == -1) {
             perror("fcntl call");
         }
 
@@ -135,19 +149,110 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    int completeNode[4] = {0};
+    int totalBufferSize = 0;
+
+    while (interactive) {
+        memset(buff, 0, sizeof(buff));
+        for (int i = 0; i < nodeSize; i++) {
+            completeNode[i] = 0;
+        }
+
+        printf("Enter 'quit' to leave this interactive mode\n");
+        printf("Working with nodes:");
+        for (int i = 0; i < nodeSize; i++) {
+            printf("%s,", nodeList[i]);
+        }
+
+        printf("\n");
+        write(1, "clsh> ", 6);
+
+        while (1) {
+            char interactiveBuff[MSGSIZE] = {0};
+            char command[MSGSIZE] = {0};
+            switch (read(0, command, sizeof(command))) {
+                case -1:
+                    // perror("read");
+                    break;
+                case 0:
+                    printf("EOF\n");
+                    break;
+                default:
+                    if (strcmp(command, "quit\n") == 0) {
+                        printf("Bye\n");
+                        exit(0);
+                    }
+                    break;
+            }
+
+            // TODO
+            if (command[0] == '!') {
+                                return 0;
+            }
+
+            if (command[0] != '\0') {
+                command[strlen(command) - 1] = ' ';
+                strcat(command, "&& echo  ");
+                strcat(command, "\n");
+                for (int i = 0; i < nodeSize; i++) {
+                    write(input[i][1], command, sizeof(command));
+                }
+                break;
+            }
+        }
+
+        printf("---------------------------\n");
+
+        while (1) {
+            for (int i = 0; i < nodeSize; i++) {
+                if (completeNode[i] == 1) {
+                    continue;
+                }
+                int n;
+                char interactiveBuff[MSGSIZE] = {0};
+                switch ((n = read(output[i][0], interactiveBuff, sizeof(interactiveBuff) - 1))) {
+                    case -1: /* code */
+                        // perror("read");
+                        break;
+                    case 0:
+                        completeNode[i] = 1;
+                        break;
+                    default:
+                        interactiveBuff[n] = '\0';
+                        strcat(buff, nodeList[i]);
+                        strcat(buff, " : ");
+                        strcat(buff, interactiveBuff);
+                        completeNode[i] = 1;
+                        break;
+                }
+            }
+
+            bool isComplete = true;
+            for (int i = 0; i < nodeSize; i++) {
+                if (completeNode[i] == 0) {
+                    isComplete = false;
+                }
+            }
+            if (isComplete) {
+                break;
+            }
+        }
+        printf("%s", buff);
+    }
+
     for (int i = 0; i < nodeSize; i++) {
         write(input[i][1], remoteCommand, remoteCommandSize);
     }
 
-    int totalBufferSize = 0;
-    int completeNode[4] = {0};
-
     while (1) {
         for (int i = 0; i < nodeSize; i++) {
+            if (completeNode[i]) continue;
+
+            int n;
             char readBuff[MSGSIZE] = {0};
-            switch (read(output[i][0], readBuff, sizeof(readBuff))) {
+            switch ((n = read(output[i][0], readBuff, sizeof(readBuff)))) {
                 case -1: /* code */
-                    perror("read");
+                    // perror("read");
                     break;
                 case 0:
                     printf("EOF\n");
@@ -156,7 +261,6 @@ int main(int argc, char *argv[]) {
                     strcat(buff, nodeList[i]);
                     strcat(buff, " : ");
                     strcat(buff, readBuff);
-
                     if (outFilename != NULL) {
                         char *tmp = strdup(outFilename);
                         strcat(tmp, nodeList[i]);
@@ -170,9 +274,11 @@ int main(int argc, char *argv[]) {
                     break;
             }
 
-            switch (read(err[i][0], readBuff, sizeof(readBuff))) {
+            char errBuff[MSGSIZE] = {0};
+
+            switch (read(err[i][0], errBuff, sizeof(errBuff))) {
                 case -1: /* code */
-                    perror("read");
+                    // perror("read");
                     break;
                 case 0:
                     printf("EOF\n");
@@ -180,11 +286,11 @@ int main(int argc, char *argv[]) {
                 default:
                     if (errFilename != NULL) {
                         char *tmp = strdup(errFilename);
-                        strcat(tmp, nodeList[i]);
+                        strcat(tmp, nodeList[0]);
                         strcat(tmp, ".err");
 
                         FILE *fp = fopen(tmp, "w");
-                        fprintf(fp, "%s", readBuff);
+                        fprintf(fp, "%s", errBuff);
                         fclose(fp);
                     }
 

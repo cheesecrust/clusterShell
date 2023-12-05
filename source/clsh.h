@@ -18,12 +18,14 @@
 #define REDIRECTION_OPTION "b"
 #define OUTPUT_OPTION "out"
 #define ERROR_OPTION "err"
+#define INTERACTIVE_OPTION "i"
 
 #define HOST_OPTION_INDEX 0
 #define HOST_FILE_OPTION_INDEX 1
 #define REDIRECTION_OPTION_INDEX 2
 #define OUTPUT_OPTION_INDEX 3
 #define ERROR_OPTION_INDEX 4
+#define INTERACTIVE_OPTION_INDEX 5
 
 void replaceItem(char *item, char newItem, char path);
 
