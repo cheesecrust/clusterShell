@@ -31,13 +31,17 @@ int getNodes(char *nodes, char *nodeList[], char delimiter) {
     return nodeSize;
 }
 
-int getRemoteCommand(char *command[], char *remoteCommand, int start, int end) {
+int getRemoteCommand(char *command[], char *remoteCommand, int start, int end, int isRedirection) {
     int commandSize = 0;
-
     for (int i = start; i < end; i++) {
         strcat(remoteCommand, command[i]);
         strcat(remoteCommand, " ");
         commandSize += strlen(command[i]) + 1;
+    }
+
+    if (isRedirection) {
+        remoteCommand[commandSize - 1] = '\0';
+        return commandSize;
     }
 
     strcat(remoteCommand, "&& echo  ");
@@ -74,12 +78,10 @@ int **getOption(int argc, char **argv, int *cnt) {
                 item[1] = optind - 1;
                 break;
             case 'h':
-                printf("%d\n", optind);
                 item[0] = HOST_OPTION_INDEX;
                 item[1] = optind - 1;
                 break;
             case 'b':
-                printf("%d\n", optind);
                 item[0] = REDIRECTION_OPTION_INDEX;
                 item[1] = optind - 1;
                 break;

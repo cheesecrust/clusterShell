@@ -4,16 +4,70 @@
 #define MSGSIZE 10000
 
 pid_t pid[nodeNum];
+char *nodeList[MSGSIZE] = {0};
+bool mainTerminated = false;
+int nodeSize = 0;
+
+void terminateAllChildProcess(int sig) {
+    // sigchld block
+    int childStatus;
+    // 모든 자식프로세스에 sigstop 시그널 보내기
+    for (int i = 0; i < nodeSize; i++) {
+        kill(pid[i], sig);
+    }
+
+    // 자식 프로세스가 끝날 때까지 wait
+    for (int i = 0; i < nodeSize; i++) {
+        pid_t terminatedChild = wait(&childStatus);
+        if (terminatedChild <= 0) continue;
+        printf("자식 프로세스(%d)가 종료되었습니다.\n", terminatedChild);
+    }
+    printf("모든 프로세스가 종료되었습니다.\n");
+}
+
+void sigTermHandler(int signo) {
+    mainTerminated = true;
+    psignal(signo, "Received Signal:");
+    terminateAllChildProcess(SIGTERM);
+    exit(0);
+}
+
+void sigQuitHandler(int signo) {
+    mainTerminated = true;
+    psignal(signo, "Received Signal:");
+    terminateAllChildProcess(SIGKILL);
+    exit(0);
+}
+
+void sigChildHandler(int signo) {
+    if (mainTerminated) return;
+    pid_t pid_child;
+    int node = -1;
+    int status;
+    while (1) {
+        if ((pid_child = waitpid(-1, &status, WNOHANG)) > 0) {
+            printf("자식 프로세스(%d)가 종료되었습니다.\n", pid_child);
+            for (int i = 0; i < nodeSize; i++) {
+                if ((int)pid_child == (int)pid[i]) {
+                    node = i;
+                }
+            }
+        } else {
+            break;
+        }
+    }
+    printf("ERROR: %s connection lost\n", nodeList[node]);
+    terminateAllChildProcess(SIGTERM);
+    exit(0);
+}
 
 int main(int argc, char *argv[]) {
     int input[nodeNum][2], output[nodeNum][2], err[nodeNum][2];
 
-    char *nodeList[MSGSIZE] = {0};
     char remoteCommand[MSGSIZE] = {0};
     char keyboardBuffer[MSGSIZE] = {0};
     char buff[MSGSIZE] = {0};
 
-    int nodeSize = 0;
     int remoteCommandSize = 0;
     int cnt = 0;
     int **option_list = getOption(argc, argv, &cnt);
@@ -33,7 +87,7 @@ int main(int argc, char *argv[]) {
         if (option_list[i][0] == HOST_OPTION_INDEX) {
             char *nodeString = argv[command_start];
             nodeSize = getNodes(nodeString, nodeList, ',');
-            remoteCommandSize = getRemoteCommand(argv, remoteCommand, command_start + 1, command_end);
+            remoteCommandSize = getRemoteCommand(argv, remoteCommand, command_start + 1, command_end, 0);
         }
 
         if (option_list[i][0] == HOST_FILE_OPTION_INDEX) {
@@ -43,13 +97,16 @@ int main(int argc, char *argv[]) {
             read(fd, nodes, MSGSIZE);
 
             nodeSize = getNodes(nodes, nodeList, '\n');
-            remoteCommandSize = getRemoteCommand(argv, remoteCommand, command_start + 1, command_end);
+            remoteCommandSize = getRemoteCommand(argv, remoteCommand, command_start + 1, command_end, 0);
         }
 
         if (option_list[i][0] == REDIRECTION_OPTION_INDEX) {
             read(0, keyboardBuffer, MSGSIZE);
 
-            remoteCommandSize = getRemoteCommand(argv, remoteCommand, command_start, command_end);
+            memset(remoteCommand, 0, sizeof(remoteCommand));
+
+            remoteCommandSize = getRemoteCommand(argv, remoteCommand, command_start, command_end, 1);
+            printf("%s\n", remoteCommand);
 
             strcat(remoteCommand, "<<< ");
             strcat(remoteCommand, keyboardBuffer);
@@ -78,7 +135,7 @@ int main(int argc, char *argv[]) {
     if (nodeSize == 0) {
         char *clsh_host_env = getenv("CLSH_HOSTS");
         // 없을 경우 default 로 읽기
-        // TODO : 여기 좀 바꿔야 함
+
         if (clsh_host_env == NULL) {
             int fd = open(argv[2], O_RDONLY);
             read(fd, clsh_host_env, MSGSIZE);
@@ -91,8 +148,36 @@ int main(int argc, char *argv[]) {
         }
 
         nodeSize = getNodes(clsh_host_env, nodeList, ':');
-        remoteCommandSize = getRemoteCommand(argv, remoteCommand, commandStart, argc);
+        remoteCommandSize = getRemoteCommand(argv, remoteCommand, commandStart, argc, 0);
     }
+
+    struct sigaction act, chld;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;
+    act.sa_handler = sigTermHandler;
+    if (sigaction(SIGTERM, &act, (struct sigaction *)NULL) < 0) {
+        perror("sigaction");
+        exit(1);
+    }
+    if (sigaction(SIGINT, &act, (struct sigaction *)NULL) < 0) {
+        perror("sigaction");
+        exit(1);
+    }
+    if (sigaction(SIGTSTP, &act, (struct sigaction *)NULL) < 0) {
+        perror("sigaction");
+        exit(1);
+    }
+    act.sa_handler = sigQuitHandler;
+    if (sigaction(SIGQUIT, &act, (struct sigaction *)NULL) < 0) {
+        perror("sigaction");
+        exit(1);
+    }
+
+    // sigchld 처리
+    chld.sa_handler = sigChildHandler;
+    sigfillset(&chld.sa_mask);
+    chld.sa_flags = SA_NOCLDSTOP;
+    sigaction(SIGCHLD, &chld, NULL);
 
     for (int i = 0; i < nodeSize; i++) {
         int fd = 1;
@@ -185,9 +270,10 @@ int main(int argc, char *argv[]) {
                     break;
             }
 
-            // TODO
             if (command[0] == '!') {
-                                return 0;
+                printf("Local : ");
+                system(command + 1);
+                exit(1);
             }
 
             if (command[0] != '\0') {
@@ -265,7 +351,6 @@ int main(int argc, char *argv[]) {
                         char *tmp = strdup(outFilename);
                         strcat(tmp, nodeList[i]);
                         strcat(tmp, ".out");
-                        printf("%s\n", tmp);
                         FILE *fp = fopen(tmp, "w");
                         fprintf(fp, "%s", readBuff);
                         fclose(fp);
@@ -286,9 +371,8 @@ int main(int argc, char *argv[]) {
                 default:
                     if (errFilename != NULL) {
                         char *tmp = strdup(errFilename);
-                        strcat(tmp, nodeList[0]);
+                        strcat(tmp, nodeList[i]);
                         strcat(tmp, ".err");
-
                         FILE *fp = fopen(tmp, "w");
                         fprintf(fp, "%s", errBuff);
                         fclose(fp);

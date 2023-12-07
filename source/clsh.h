@@ -31,7 +31,7 @@ void replaceItem(char *item, char newItem, char path);
 
 int getNodes(char *, char **, char);
 
-int getRemoteCommand(char **, char *, int, int);
+int getRemoteCommand(char **, char *, int, int, int);
 
 int **getOption(int, char **, int *);
 
